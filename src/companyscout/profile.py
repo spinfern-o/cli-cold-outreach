@@ -43,3 +43,21 @@ def match(profile: CandidateProfile, company, usage: Counter) -> tuple[str, floa
             why = f"shared areas: {', '.join(shared_tags) or 'none'}; shared stack: {', '.join(shared_tech) or 'none'}"
             best, best_adjusted = (p.name, raw, why), adjusted
     return best
+
+
+def import_profile(session, provider, cfg, source_text: str) -> CandidateProfile:
+    from . import db, llm
+    from .schemas import TAGS
+    prompt = ("TASK: profile\nBuild a candidate knowledge base from the documents below. Use only facts stated in them; "
+              "do not add metrics, technologies, employers or projects. One entry in `projects` per project or work "
+              "experience (kind = project or experience). `evidence` = the supporting bullets, close to verbatim. "
+              f"`tags` only from: {', '.join(TAGS)}. `credentials` = notable honours.\n\nDOCUMENTS:\n{source_text}")
+    cleaned = clean(llm.ask(provider, "profile", prompt, CandidateProfile, session=session, cfg=cfg), source_text, cfg)
+    db.kv_set(session, "profile", cleaned.model_dump())
+    return cleaned
+
+
+def load_profile(session):
+    from . import db
+    data = db.kv_get(session, "profile")
+    return CandidateProfile.model_validate(data) if data else None

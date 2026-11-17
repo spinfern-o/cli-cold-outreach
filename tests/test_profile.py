@@ -38,3 +38,11 @@ def test_match_does_not_keep_forcing_an_overused_project(cfg):
     first = profile.match(p, llm_co, Counter())[0]
     other = profile.match(p, llm_co, Counter({first: 9}))[0]
     assert {first, other} == {"FinDash", "Colson Group / EBG"}
+
+
+def test_import_profile_stores_cleaned_knowledge_base(session, cfg):
+    from companyscout import llm
+    provider = llm.MockProvider(lambda task, prompt: raw_profile().model_dump())
+    profile.import_profile(session, provider, cfg, TEXT)
+    stored = profile.load_profile(session)
+    assert [p.name for p in stored.projects] == ["FinDash", "declutter", "Colson Group / EBG"]
