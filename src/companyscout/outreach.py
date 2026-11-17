@@ -6,7 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 from difflib import SequenceMatcher
 
-from . import db, llm
+from . import db, llm, style
 from .schemas import EmailDraft, QCReview
 
 VERIFIED = ("verified_public", "user_verified")
@@ -28,9 +28,6 @@ def name_variants(name: str) -> set[str]:
     return out
 
 
-GENERIC = ["i hope this email finds you well", "i am writing to express", "i'm writing to express", "passionate about",
-           "cutting-edge", "esteemed", "innovative company", "synergy", "i would be a great fit", "dream company"]
-
 # Agent C: the outreach strategy every draft and review is held to.
 STRATEGY = """Cold-email strategy for technical internship outreach to small and midsize companies:
 - Write to one engineer, not a hiring portal. Open with a specific, checkable observation about their product,
@@ -43,7 +40,17 @@ STRATEGY = """Cold-email strategy for technical internship outreach to small and
 - End with one low-pressure question about Summer 2027 engineering internships. One ask only.
 - {lo}-{hi} words, plain text, no bullet lists, no links except at most one to the project, first-name greeting,
   sign off as "Larry Wang".
-- Subject lines: under 60 characters, specific to the company or the shared technical area, never clickbait.
+- Subject lines: under 60 characters (ideally 3-6 words), specific to the company or the shared technical area,
+  never clickbait, never "Internship application" or "Opportunity".
+- Shared inbox (careers@, hello@, info@ ...): someone triages it, so make it forwardable. The first two sentences say
+  who the candidate is and what he wants; keep the named person's first name in the greeting if known; the one ask
+  is "who would be the right person to ask about a Summer 2027 engineering internship?"
+- Sound like one specific student, not an AI. Never use "it's not X, it's Y" / "not just X but Y" contrasts, tidy
+  one-line closers, rhetorical questions, triads, em dashes, or stock phrases (I hope this finds you well, I'm
+  reaching out, I came across, passionate about, excited to, would love the opportunity, leverage, quick chat).
+  Avoid AI vocabulary (delve, crucial, pivotal, robust, seamless, showcase, foster, enhance, impressive, innovative).
+  Mix short and long sentences, use plain verbs (built, checked, broke), and include one concrete detail only the
+  candidate would know (how something was tested or what failed). Never invent a detail to sound human.
 - Follow-up: one message, sent in the same thread about a week later, under 70 words, adds one new concrete detail
   rather than repeating the first email, and makes it easy to say no.
 - Use only facts given below. Never state a number, technology, employer or result that is not in CANDIDATE FACTS,
@@ -98,7 +105,8 @@ def generate(session, provider, cfg, company, profile, force=False):
     contact = company.contacts[0] if company.contacts else None
     lo, hi = cfg["word_range"]
     prompt = (f"TASK: draft\nCompany: {company.name}\n{STRATEGY.format(lo=lo, hi=hi)}\n\n"
-              f"RECIPIENT: {contact.name + ', ' + (contact.title or '') if contact else 'unknown — address the engineering team'}\n\n"
+              f"RECIPIENT: {contact.name + ', ' + (contact.title or '') if contact else 'unknown — address the engineering team'}"
+              f"{' (sent to the shared inbox ' + contact.email + ')' if contact and style.shared_inbox(contact.email) else ''}\n\n"
               f"COMPANY RESEARCH:\n{_research(session, company)}\n\nCANDIDATE FACTS:\n{_facts(profile, cfg, company.primary_project)}\n\n"
               "Return: subjects (exactly 3 options), body (the email), rationale (why this company and this project, "
               "citing the research used), followup (the one follow-up message).")
@@ -127,9 +135,9 @@ def qc(session, provider, cfg, draft, profile) -> dict:
         issues.append("no clear question about Summer 2027 opportunities")
     if not any(re.search(rf"\b{re.escape(n)}\b", body, re.I) for n in name_variants(company.name)):
         issues.append("never names the company")
-    generic = [g for g in GENERIC if g in body.lower()]
-    if generic:
-        issues.append(f"generic phrasing: {', '.join(generic)}")
+    style_issues, style_warnings = style.check(draft.subject or "", body)
+    issues += style_issues
+    warnings += style_warnings
     news = session.query(db.NewsItem).filter_by(company_id=company.id).all()
     allowed = " ".join([profile.source_text, _facts(profile, cfg), json.dumps(company.research or {}), company.description or "",
                         " ".join(f"{n.title} {n.summary}" for n in news)])
@@ -152,7 +160,8 @@ def qc(session, provider, cfg, draft, profile) -> dict:
                   "personalization, technical_accuracy, resume_consistency, research_grounding, natural_writing, "
                   "recipient_appropriateness, call_to_action. Verdict 'reject' if any claim about the candidate is not in "
                   "CANDIDATE FACTS, any claim about the company is not in COMPANY RESEARCH, the email would fit another "
-                  "company with the name swapped, or it reads as flattery. List concrete issues.\n\n"
+                  "company with the name swapped, it reads as flattery, or it reads as AI-written (staged contrasts, stock phrases, "
+                  "generic praise, uniform rhythm, nothing only this candidate could say). List concrete issues.\n\n"
                   f"RECIPIENT (from our contact research): {contact.name + ', ' + (contact.title or '') if contact and contact.name else 'unknown'}\n\n"
                   f"EMAIL:\nSubject: {draft.subject}\n{body}\n\nCOMPANY RESEARCH:\n{_research(session, company)}\n\n"
                   f"CANDIDATE FACTS:\n{_facts(profile, cfg)}")

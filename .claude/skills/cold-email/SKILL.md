@@ -65,7 +65,7 @@ Run the checker on the final text (subject on line 1, then a blank line, then th
 python3 .claude/skills/cold-email/scripts/check_email.py draft.txt
 ```
 
-It reports word count, subject length, question marks, links, stock phrases, AI vocabulary, em dashes, "not X but Y" staging and sentence-length variety. Fix every FAIL. Treat WARN as a judgment call and say why you kept it if you do.
+It reports word count, subject length, question marks, links, stock phrases, AI vocabulary, em dashes, "not X but Y" staging and sentence-length variety. These are the same rules CompanyScout QC applies (`src/companyscout/style.py`), so a clean result here means the deterministic part of QC will pass. Fix every FAIL. Treat WARN as a judgment call and say why you kept it if you do.
 
 ## Output
 

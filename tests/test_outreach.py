@@ -121,3 +121,25 @@ def test_llm_reviewer_is_told_who_the_recipient_is(session, cfg):
     provider = llm.MockProvider(lambda task, prompt: prompts.append(prompt) or dict(verdict="pass", scores={}, issues=[]))
     outreach.qc(session, provider, cfg, d, profile())
     assert "RECIPIENT (from our contact research): Dana Reyes, CTO" in prompts[0]
+
+
+def test_qc_rejects_ai_writing_tells(session, cfg):
+    body = GOOD.replace("I built FinDash", "It's not just a dashboard, but a check. I'm reaching out because I built FinDash")
+    _, d = setup(session, body=body)
+    found = issues(session, cfg, d)
+    assert "staging" in found and "i'm reaching out" in found
+
+
+def test_generate_tells_the_writer_when_the_address_is_a_shared_inbox(session, cfg):
+    c, _ = setup(session, status="verified_public")
+    c.contacts[0].email = "careers@ledgerline.example"
+    session.commit()
+    prompts = []
+
+    def handler(task, prompt):
+        prompts.append(prompt)
+        if task == "draft":
+            return dict(subjects=["a", "b", "c"], body=GOOD, rationale="r", followup="Following up once on my note from last week.")
+        return dict(verdict="pass", scores={}, issues=[])
+    outreach.generate(session, llm.MockProvider(handler), cfg, c, profile(), force=True)
+    assert "shared inbox careers@ledgerline.example" in prompts[0]
