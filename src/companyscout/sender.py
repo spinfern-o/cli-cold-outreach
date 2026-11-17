@@ -162,6 +162,31 @@ def _suppress(session, email, reason):
         session.add(db.Suppression(email=email.lower(), reason=reason))
 
 
+def track_manual_sends(session, client) -> list:
+    """Finished drafts (placed in Gmail Drafts for the user to send by hand): once the user has sent one, record it
+    like a tool send so replies, bounces, opt-outs and follow-ups are tracked. Returns [(company, to_email)]."""
+    found = []
+    for d in session.query(db.Draft).filter_by(status="finished", kind="initial").all():
+        company = d.company
+        hit = client.find_sent_subject(d.subject) or client.find_sent_subject(f"[{company.name}] {d.subject}")
+        if not hit or not hit["to"]:
+            continue
+        session.add(db.SentMessage(draft_id=d.id, company_id=company.id, kind="initial", to_email=hit["to"],
+                                   subject=d.subject, body=d.body, idempotency_key=f"manual:{d.id}", status="sent",
+                                   rfc_message_id=hit["rfc_id"], gmail_message_id=hit["id"],
+                                   gmail_thread_id=hit["threadId"], sent_at=db.now()))
+        d.status = "sent"
+        if company.state == "finished":
+            db.transition(company, "sent")
+        contact = d.contact
+        if contact is not None and (contact.email or "").lower() != hit["to"].lower():
+            contact.email, contact.email_status, contact.verified_at = hit["to"], "user_verified", db.now()  # he sent to it
+        db.log_activity(session, "sent", f"{company.name}: sent by hand to {hit['to']} (found in Gmail Sent)", company.id)
+        session.commit()
+        found.append((company, hit["to"]))
+    return found
+
+
 def sync_replies(session, client, cfg, now=None):
     """Read only the threads this tool started; record new replies and apply their consequences."""
     now = now or db.now()

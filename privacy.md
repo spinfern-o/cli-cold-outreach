@@ -4,7 +4,7 @@ CompanyScout is a personal command-line tool run by its owner on their own compu
 
 **Gmail access.** With the owner's consent (Google OAuth), it uses:
 - `gmail.compose` to create drafts and send emails the owner has individually approved;
-- `gmail.readonly` to read replies, bounces and opt-outs on threads it started, and to check the Sent folder so the same person is not emailed twice.
+- `gmail.readonly` to read replies, bounces and opt-outs on threads it started (including emails the owner sent by hand from drafts it created, found by a Sent-folder search for that exact subject), and to check the Sent folder so the same person is not emailed twice.
 
 **Data.** Everything stays on the owner's Mac: a local SQLite database and an OAuth token in the macOS Keychain. Nothing is sold or shared, and no data is sent to any server operated by this project. Draft text and public company research are processed by Anthropic's Claude API to write and check emails.
 

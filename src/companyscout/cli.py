@@ -230,7 +230,22 @@ def gmail_draft(ids: list[int] = typer.Argument(..., help="Company ids.")):
         _finish(d)
         qc = "" if (d.qc or {}).get("passed") else " [red](failed QC; read it first)[/red]"
         console.print(f"  {escape(c.name)}: Gmail draft created, To: {escape(to)}{qc}")
-    console.print("Open Gmail → Drafts, check the To: address, then send by hand. Replies there aren't tracked by `outreach inbox`.")
+    console.print("Open Gmail → Drafts, check the To: address, then send by hand. Run `outreach gmail check` afterwards to track replies.")
+
+
+@gmail_app.command("check")
+def gmail_check():
+    """Find finished drafts you've sent by hand from Gmail, start tracking them, then check every tracked thread for replies."""
+    client = gmail.get_client(cfg)
+    for c, to in sender.track_manual_sends(S(), client):
+        console.print(f"  [green]sent[/green] {escape(c.name)} (id {c.id}) → {escape(to)}; now tracking replies")
+    waiting = S().query(db.Draft).filter_by(status="finished").all()
+    if waiting:
+        console.print(f"  Still in Gmail Drafts (not sent yet): {escape(', '.join(f'{d.company.name} (id {d.company_id})' for d in waiting))}")
+    replies = sender.sync_replies(S(), client, cfg)
+    for r in replies:
+        console.print(f"  [bold]reply[/bold] from {escape(r.from_email)} ({r.classification}): {escape((r.snippet or '')[:100])}")
+    console.print(f"{len(replies)} new repl{'y' if len(replies) == 1 else 'ies'}. All replies: `outreach replies`.")
 
 
 @gmail_app.command("disconnect")
@@ -592,6 +607,7 @@ def monitor_run():
     console.print(f"Checked {run.checked}, {run.new_items} new items, {run.missed_ticks} missed ticks{', error: ' + run.error if run.error else ''}")
     try:
         client = gmail.get_client(cfg)
+        sender.track_manual_sends(S(), client)
         replies = sender.sync_replies(S(), client, cfg)
         sender.prepare_followups(S(), cfg)
         if replies:

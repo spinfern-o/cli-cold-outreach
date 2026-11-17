@@ -69,7 +69,11 @@ class MockGmail:
         return next((m for m in self.box("sent") if m["rfc_id"] == rfc_id), None)
 
     def sent_to(self, email) -> bool:
-        return any(m["to"].lower() == email.lower() for m in self.box("sent"))
+        return any((m["to"] or "").lower() == email.lower() for m in self.box("sent"))
+
+    def find_sent_subject(self, subject):
+        m = next((m for m in self.box("sent") if (m["subject"] or "").strip().lower() == subject.strip().lower()), None)
+        return m and {"id": m["id"], "threadId": m["threadId"], "to": parseaddr(m["to"] or "")[1], "rfc_id": m["rfc_id"]}
 
     def thread(self, thread_id):
         return [m for m in self.messages if m["threadId"] == thread_id and m["label"] != "draft"]
@@ -106,6 +110,18 @@ class RealGmail:
 
     def sent_to(self, email) -> bool:  # the one narrowly scoped mailbox search: prevents duplicate outreach
         return self._first(f"in:sent to:{email}") is not None
+
+    def find_sent_subject(self, subject):
+        """Narrow Sent-folder search for an email the user sent by hand from a draft this tool created."""
+        q = 'in:sent subject:"' + subject.replace('"', " ") + '"'
+        for hit in self.users.messages().list(userId="me", q=q, maxResults=5).execute().get("messages", []):
+            m = self.users.messages().get(userId="me", id=hit["id"], format="metadata",
+                                          metadataHeaders=["To", "Subject", "Message-ID"]).execute()
+            h = {x["name"]: x["value"] for x in m.get("payload", {}).get("headers", [])}
+            if h.get("Subject", "").strip().lower() == subject.strip().lower():  # Gmail's subject search is fuzzy
+                return {"id": m["id"], "threadId": m["threadId"], "to": parseaddr(h.get("To", ""))[1],
+                        "rfc_id": h.get("Message-ID")}
+        return None
 
     def thread(self, thread_id):
         """Only ever called with thread ids this tool created."""

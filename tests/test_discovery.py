@@ -105,3 +105,14 @@ def test_text_saying_no_internships_is_not_internship_evidence(session, cfg):
     r = research(has_internship_evidence=True, internship_evidence="Ran a 2023 software intern program.")
     discovery.apply_research(session, c, CompanyResearch(**r), cfg, None, lambda url: "")
     assert c.hiring == "intern_evidence"
+
+
+def test_discovery_that_only_failed_stays_due_for_retry(session, cfg, monkeypatch):
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+
+    def down(task, prompt):
+        raise llm.ProviderError("You've hit your 5-hour limit")
+    assert discovery.discover(session, llm.MockProvider(down), cfg, 5) == 0
+    assert db.kv_get(session, "last_discovery") is None
+    discovery.discover(session, llm.MockProvider(lambda task, prompt: {"companies": []}), cfg, 5)
+    assert db.kv_get(session, "last_discovery") is not None

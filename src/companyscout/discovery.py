@@ -76,13 +76,15 @@ def discover(session, provider, cfg, limit, segments=None, progress=None) -> int
     cursor = db.kv_get(session, "discovery_cursor", 0) % len(segments)
     segments = segments[cursor:] + segments[:cursor]
     known = {d for (d,) in session.query(db.Company.domain)}
-    added = 0
+    added, failed, calls = 0, [], [0]
 
     def call(segment):
+        calls[0] += 1
         try:
             return llm.ask(provider, "discover", _discover_prompt(segment, cfg, known), DiscoveryResult, web=True).companies
         except llm.ProviderError as e:
             log.warning("discovery call failed", extra={"data": {"segment": segment, "error": str(e)[:200]}})
+            failed.append(segment)
             return []
 
     width = max(1, cfg["research_parallel"])
@@ -111,7 +113,8 @@ def discover(session, provider, cfg, limit, segments=None, progress=None) -> int
         if added >= limit or added == before:
             break
     db.kv_set(session, "discovery_cursor", cursor + 1)
-    db.kv_set(session, "last_discovery", db.now().isoformat())
+    if len(failed) < calls[0]:  # every call failed (e.g. a usage limit): leave it due so the next tick retries
+        db.kv_set(session, "last_discovery", db.now().isoformat())
     return added
 
 

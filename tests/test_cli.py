@@ -102,3 +102,15 @@ def test_gmail_draft_puts_company_name_in_to_when_no_verified_address(home):
     assert (s.query(db.Draft).one().status, s.get(db.Company, 1).state) == ("finished", "finished")
     assert "No drafts waiting" in runner.invoke(app, ["review"]).output
     assert "Finished" in runner.invoke(app, ["stats"]).output
+
+    # he sends it by hand from Gmail; `gmail check` picks it up and then tracks replies on that thread
+    client = gmail.MockGmail()
+    d = s.query(db.Draft).one()
+    sent = client.send(gmail.build_message("L", client.address, "cto@ledgerline.example", d.subject, d.body, "<hand@x>"))
+    out = runner.invoke(app, ["gmail", "check"]).output
+    assert "cto@ledgerline.example" in out and "0 new replies" in out
+    s = db.connect()
+    assert (s.get(db.Company, 1).state, s.query(db.Draft).one().status) == ("sent", "sent")
+    assert s.get(db.Company, 1).contacts[0].email_status == "user_verified"
+    gmail.MockGmail().add_reply(sent["threadId"], "cto@ledgerline.example", "Happy to talk, send me times.")
+    assert "1 new reply" in runner.invoke(app, ["gmail", "check"]).output
