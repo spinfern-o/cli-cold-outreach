@@ -55,7 +55,7 @@ def _news(session, company):
 
 def _facts(profile, cfg, project_name=None):
     lines = [f"{profile.name} — {profile.headline}. {profile.education}",
-             "Credentials: " + "; ".join(list(profile.credentials) + list(cfg["credentials"]))]
+             "Credentials: " + "; ".join(dict.fromkeys(list(profile.credentials) + list(cfg["credentials"])))]
     for p in profile.projects:
         lead = " (PRIMARY EXAMPLE FOR THIS EMAIL)" if p.name == project_name else ""
         lines.append(f"- {p.name}{lead}: {p.summary} Tech: {', '.join(p.technologies)}. Evidence: {' '.join(p.evidence)}")

@@ -93,3 +93,15 @@ def test_failed_research_leaves_company_untouched_and_others_proceed(session, cf
     assert (done, failed) == (1, 1)
     states = {c.name: c.state for c in session.query(db.Company)}
     assert states == {"Good": "researched", "Bad": "discovered"}
+
+
+def test_text_saying_no_internships_is_not_internship_evidence(session, cfg):
+    c = db.Company(name="Acme", domain="acme.com")
+    session.add(c)
+    session.commit()
+    r = research(internship_evidence="None found. The careers page lists no internships.", engineering_openings=["Senior Engineer"])
+    discovery.apply_research(session, c, CompanyResearch(**r), cfg, None, lambda url: "")
+    assert c.hiring == "hiring_eng"
+    r = research(has_internship_evidence=True, internship_evidence="Ran a 2023 software intern program.")
+    discovery.apply_research(session, c, CompanyResearch(**r), cfg, None, lambda url: "")
+    assert c.hiring == "intern_evidence"

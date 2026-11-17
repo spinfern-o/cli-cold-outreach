@@ -119,7 +119,9 @@ def _research_prompt(name, website, industry, description):
             "Funding alone is not stability. Never invent financial figures.\n"
             "- stack: technologies the company documents using\n"
             f"- tags: only from this list: {', '.join(TAGS)}\n"
-            "- engineering_openings (current titles), internship_evidence (intern/new-grad/early-career hiring, or empty), "
+            "- engineering_openings (current titles); has_internship_evidence: true ONLY if you found concrete evidence of "
+            "intern, co-op, new-grad or early-career engineering hiring (past or present), with internship_evidence "
+            "describing it; otherwise false; "
             "engineering_presence (blog, GitHub, talks)\n"
             "- recent_announcements (last 12 months, dated), risk_signals (layoffs, shutdown, lawsuits)\n"
             "- feed_url: the company's blog/news RSS or Atom feed if one exists\n"
@@ -130,7 +132,7 @@ def _research_prompt(name, website, industry, description):
 
 
 def apply_research(session, company, r: CompanyResearch, cfg, profile, fetch=fetch_url) -> None:
-    hiring = "intern_evidence" if r.internship_evidence else "hiring_eng" if r.engineering_openings else "unknown"
+    hiring = "intern_evidence" if r.has_internship_evidence else "hiring_eng" if r.engineering_openings else "unknown"
     new = {"employee_count": r.employee_count or company.employee_count, "stability": r.stability, "hiring": hiring,
            "industry": r.industry or company.industry, "location": r.location or company.location}
     for field in TRACKED:

@@ -207,7 +207,7 @@ def profile_import(resume: Path, docs: list[Path] = typer.Option([], "--docs", h
 
 
 def _show_profile(p):
-    console.print(Panel(escape(f"{p.name} — {p.headline}\n{p.education}\nCredentials: {'; '.join(list(p.credentials) + cfg['credentials'])}"),
+    console.print(Panel(escape(f"{p.name} — {p.headline}\n{p.education}\nCredentials: {'; '.join(dict.fromkeys(list(p.credentials) + cfg['credentials']))}"),
                         title="Candidate"))
     t = Table(title="Verified projects and experience")
     for col in ("Name", "Summary", "Technologies", "Tags"):

@@ -55,6 +55,7 @@ class CompanyResearch(BaseModel):
     stack: list[str] = []
     tags: list[str] = []
     engineering_openings: list[str] = []
+    has_internship_evidence: bool = False  # explicit flag: the text field often says "none found"
     internship_evidence: str = ""
     engineering_presence: str = ""
     recent_announcements: list[str] = []
