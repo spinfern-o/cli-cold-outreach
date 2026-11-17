@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from email.utils import make_msgid
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -186,6 +187,39 @@ def gmail_status():
         console.print(f"Connected as {gmail.get_client(cfg).address}")
     except Exception as e:
         fail(str(e))
+
+
+@gmail_app.command("draft")
+def gmail_draft(ids: list[int] = typer.Argument(..., help="Company ids.")):
+    """Put a company's current draft in Gmail Drafts for you to address and send by hand. Never sends.
+    To: is the verified address if there is one, otherwise the company name as a placeholder to replace."""
+    client = gmail.get_client(cfg)
+    for cid in ids:
+        c = company_or_fail(cid)
+        d = current_draft(cid)
+        if d is None:
+            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: no open draft (run `outreach generate {cid}`)")
+            continue
+        if db.kv_get(S(), f"gmail_manual_draft:{d.id}"):
+            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: draft #{d.id} is already in Gmail Drafts")
+            continue
+        k = d.contact
+        to = k.email if k and k.email and k.email_status in outreach.VERIFIED else c.name
+        args = (cfg["from_name"], client.address, to, d.subject, d.body, make_msgid(domain=client.address.split("@")[-1]))
+        try:
+            client.create_draft(gmail.build_message(*args, attachment=cfg["attachment"]))
+        except Exception:  # Gmail may refuse a To: that isn't an address; fall back to no recipient, name in subject
+            if to != c.name:
+                raise
+            client.create_draft(gmail.build_message(cfg["from_name"], client.address, "", f"[{c.name}] {d.subject}", *args[4:],
+                                                    attachment=cfg["attachment"]))
+            to = f"(blank; subject starts with [{c.name}])"
+        db.kv_set(S(), f"gmail_manual_draft:{d.id}", db.now().isoformat())
+        db.log_activity(S(), "gmail_draft", f"{c.name}: draft #{d.id} placed in Gmail Drafts for manual sending", c.id)
+        S().commit()
+        qc = "" if (d.qc or {}).get("passed") else " [red](failed QC; read it first)[/red]"
+        console.print(f"  {escape(c.name)}: Gmail draft created, To: {escape(to)}{qc}")
+    console.print("Open Gmail → Drafts, check the To: address, then send by hand. Replies there aren't tracked by `outreach inbox`.")
 
 
 @gmail_app.command("disconnect")

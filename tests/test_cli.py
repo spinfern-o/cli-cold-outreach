@@ -80,3 +80,21 @@ def test_review_lets_the_user_edit_then_requires_fresh_approval(home, monkeypatc
     d = s.query(db.Draft).one()
     assert d.approved_hash is None and "Thanks for your time" in d.body and d.status in ("drafted", "reviewed")
     s.close()
+
+
+def test_gmail_draft_puts_company_name_in_to_when_no_verified_address(home):
+    runner = CliRunner()
+    resume = home / "resume.txt"
+    resume.write_text(RESUME)
+    pdf = home / "Resume.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    for args in (["init"], ["profile", "import", str(resume)], ["discover", "--limit", "3"], ["research", "--all"],
+                 ["shortlist", "add", "1"], ["generate", "1"], ["config", "attachment", str(pdf)]):
+        assert runner.invoke(app, args).exit_code == 0, args
+    name = db.connect().get(db.Company, 1).name
+    out = runner.invoke(app, ["gmail", "draft", "1"]).output
+    assert f"To: {name}" in out
+    drafts = gmail.MockGmail().box("draft")
+    assert len(drafts) == 1 and drafts[0]["to"] == name and drafts[0]["attachments"] == ["Resume.pdf"]
+    assert gmail.MockGmail().box("sent") == []
+    assert "already in Gmail Drafts" in runner.invoke(app, ["gmail", "draft", "1"]).output

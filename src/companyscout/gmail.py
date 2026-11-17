@@ -21,7 +21,9 @@ class GmailError(RuntimeError):
 
 def build_message(from_name, from_email, to_email, subject, body, message_id, in_reply_to=None, attachment=None) -> EmailMessage:
     m = EmailMessage()
-    m["From"], m["To"], m["Subject"] = formataddr((from_name, from_email)), to_email, subject
+    m["From"], m["Subject"] = formataddr((from_name, from_email)), subject
+    if to_email:
+        m["To"] = to_email
     m["Message-ID"], m["Date"] = message_id, formatdate(localtime=True)
     if in_reply_to:  # RFC 5322 threading; Gmail also needs the threadId and a matching subject
         m["In-Reply-To"], m["References"] = in_reply_to, in_reply_to
