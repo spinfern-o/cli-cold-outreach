@@ -607,24 +607,24 @@ def generate(ids: Optional[list[int]] = typer.Argument(None), shortlist: bool = 
         fail("Give company ids or --shortlist.")
     for c in targets:
         if c.researched_at is None:
-            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: not researched")
+            console.print(f"  [yellow]skip[/yellow] {escape(c.name)} (id {c.id}): not researched")
             continue
         if c.risk_flags:
-            console.print(f"  [red]warning[/red] {escape(c.name)} has risk flags: {escape('; '.join(c.risk_flags))}")
+            console.print(f"  [red]warning[/red] {escape(c.name)} (id {c.id}) has risk flags: {escape('; '.join(c.risk_flags))}")
         try:
             with console.status(f"Drafting for {c.name}…"):
                 d = outreach.generate(S(), provider, cfg, c, p, force=force)
         except (outreach.ApprovalError, llm.ProviderError) as e:
-            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: {escape(str(e))}")
+            console.print(f"  [yellow]skip[/yellow] {escape(c.name)} (id {c.id}): {escape(str(e))}")
             continue
         verdict = "[green]passed QC[/green]" if d.qc["passed"] else "[red]rejected by QC[/red]: " + escape("; ".join(d.qc["issues"]))
-        console.print(f"  {escape(c.name)}: draft #{d.id} {verdict}")
+        console.print(f"  {escape(c.name)} (id {c.id}): draft #{d.id} {verdict}")
     console.print("Next: outreach review")
 
 
 def _show_draft(d):
     k, qc = d.contact, d.qc or {}
-    head = [f"[bold]{escape(d.company.name)}[/bold] · draft #{d.id} ({d.kind}) · status: {d.status}",
+    head = [f"[bold]{escape(d.company.name)}[/bold] (company id {d.company_id}) · draft #{d.id} ({d.kind}) · status: {d.status}",
             f"To: {escape(k.name or '?') if k else 'no contact'} <{escape(k.email or 'no address') if k else '—'}> [{k.email_status if k else 'unknown'}]",
             "Subjects: " + " | ".join(f"{'▶ ' if s == d.subject else ''}{i + 1}. {escape(s)}" for i, s in enumerate(d.subjects or [d.subject]))]
     if qc:
