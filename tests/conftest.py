@@ -9,6 +9,7 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("OUTREACH_PROVIDER", "mock")
     monkeypatch.setenv("OUTREACH_GMAIL", "mock")
     monkeypatch.setenv("OUTREACH_NOTIFY", "false")
+    monkeypatch.setenv("COLUMNS", "220")  # keep Rich tables from wrapping names in captured output
     return tmp_path
 
 

@@ -217,3 +217,20 @@ def test_silence_two_weeks_after_follow_up_closes_the_company(session, cfg):
     assert c.state == "sent"
     sender.sync_replies(session, client, cfg, now=db.now() + timedelta(days=20))
     assert c.state == "closed"
+
+
+def test_background_pass_sends_scheduled_drafts_but_never_plain_approved_ones(session, cfg):
+    approved(session, name="Plain", email="p@plain.com")
+    _, timed = approved(session, name="Timed", email="t@timed.com")
+    sender.schedule(session, timed, db.now() - timedelta(minutes=1))
+    client = gmail.MockGmail()
+    run(session, client, live(cfg), only_scheduled=True)
+    assert [m["to"] for m in client.box("sent")] == ["t@timed.com"]
+
+
+def test_sends_are_paced_by_the_minimum_gap(session, cfg):
+    for n in ("A", "B"):
+        approved(session, name=n, email=f"x@{n.lower()}.com")
+    waits = []
+    sender.send_approved(session, gmail.MockGmail(), live(cfg, min_seconds_between_sends=90), limit=10, sleep=waits.append)
+    assert len(waits) == 1 and 80 < waits[0] <= 90

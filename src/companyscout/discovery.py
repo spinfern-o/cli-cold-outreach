@@ -148,7 +148,9 @@ def apply_research(session, company, r: CompanyResearch, cfg, profile, fetch=fet
     if r.stability == "Elevated Risk":
         company.risk_flags = sorted(set((company.risk_flags or []) + r.risk_signals))
     if r.contact and (r.contact.name or r.contact.email):
-        contact = company.contacts[0] if company.contacts else db.Contact(company=company)
+        if not company.contacts:
+            company.contacts.append(db.Contact())  # append (not backref) so the session cascades the insert
+        contact = company.contacts[0]
         if not (contact.email_status == "user_verified" and contact.email == r.contact.email):
             if contact.email and contact.email != r.contact.email:
                 session.add(db.History(company_id=company.id, field="contact_email", old=contact.email,

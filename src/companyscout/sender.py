@@ -31,13 +31,13 @@ def schedule(session, draft, when) -> None:
     session.commit()
 
 
-def send_approved(session, client, cfg, limit, now=None, sleep=time.sleep):
+def send_approved(session, client, cfg, limit, now=None, sleep=time.sleep, only_scheduled=False):
     """Send (or, in draft-only mode, create Gmail drafts for) approved drafts. Returns [(draft, outcome)]."""
     if db.kv_get(session, "paused", False):
         raise SendBlocked("sending is paused (kill switch). Run `outreach resume` to re-enable.")
     now = now or db.now()
     ready = [d for d in session.query(db.Draft).filter(db.Draft.status.in_(("approved", "scheduled"))).order_by(db.Draft.id)
-             if d.status == "approved" or (d.scheduled_at and d.scheduled_at <= now)]
+             if (d.status == "approved" and not only_scheduled) or (d.status == "scheduled" and d.scheduled_at <= now)]
     results = []
     for draft in ready[:limit]:
         sent_today = session.query(db.SentMessage).filter(db.SentMessage.status == "sent",
@@ -45,11 +45,14 @@ def send_approved(session, client, cfg, limit, now=None, sleep=time.sleep):
         if cfg["live_sending"] and sent_today >= cfg["daily_send_cap"]:
             results.append((draft, f"held: daily cap of {cfg['daily_send_cap']} reached"))
             continue
+        last = session.query(db.SentMessage.sent_at).filter_by(status="sent").order_by(db.SentMessage.sent_at.desc()).first()
+        if cfg["live_sending"] and last:  # conservative pacing, also across separate invocations
+            wait = cfg["min_seconds_between_sends"] - (db.now() - last[0]).total_seconds()
+            if wait > 0:
+                sleep(wait)
         outcome = _send_one(session, client, cfg, draft, sleep)
         results.append((draft, outcome))
         log.info("send attempt", extra={"data": {"draft": draft.id, "outcome": outcome}})
-        if outcome == "sent":
-            sleep(cfg["min_seconds_between_sends"])
     return results
 
 
