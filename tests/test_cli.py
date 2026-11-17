@@ -97,5 +97,8 @@ def test_gmail_draft_puts_company_name_in_to_when_no_verified_address(home):
     drafts = gmail.MockGmail().box("draft")
     assert len(drafts) == 1 and drafts[0]["to"] == name and drafts[0]["attachments"] == ["Resume.pdf"]
     assert gmail.MockGmail().box("sent") == []
-    assert "already in Gmail Drafts" in runner.invoke(app, ["gmail", "draft", "1"]).output
-    assert "already in Gmail Drafts" in runner.invoke(app, ["review"], input="d\nq\n").output  # [d] in review = same command
+    assert "already finished" in runner.invoke(app, ["gmail", "draft", "1"]).output
+    s = db.connect()
+    assert (s.query(db.Draft).one().status, s.get(db.Company, 1).state) == ("finished", "finished")
+    assert "No drafts waiting" in runner.invoke(app, ["review"]).output
+    assert "Finished" in runner.invoke(app, ["stats"]).output

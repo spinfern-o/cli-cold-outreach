@@ -235,9 +235,10 @@ TRANSITIONS = {
     "discovered": {"researched"},
     "researched": {"shortlisted", "drafted"},
     "shortlisted": {"researched", "drafted"},
-    "drafted": {"reviewed", "shortlisted", "drafted"},
-    "reviewed": {"approved", "drafted", "shortlisted"},
-    "approved": {"scheduled", "sent", "drafted"},
+    "drafted": {"reviewed", "shortlisted", "drafted", "finished"},
+    "reviewed": {"approved", "drafted", "shortlisted", "finished"},
+    "approved": {"scheduled", "sent", "drafted", "finished"},
+    "finished": {"drafted"},  # draft handed to Gmail Drafts to send by hand; `generate <id>` starts over
     "scheduled": {"sent", "approved", "drafted"},
     "sent": {"replied", "followup_pending", "bounced"},
     "followup_pending": {"sent", "replied", "bounced"},

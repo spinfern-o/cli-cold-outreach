@@ -189,6 +189,14 @@ def gmail_status():
         fail(str(e))
 
 
+def _finish(d):
+    """Out of the review queue and out of `generate --shortlist`: the email now lives in Gmail Drafts."""
+    d.status = "finished"
+    if d.kind == "initial" and "finished" in db.TRANSITIONS.get(d.company.state, ()):
+        db.transition(d.company, "finished")
+    S().commit()
+
+
 @gmail_app.command("draft")
 def gmail_draft(ids: list[int] = typer.Argument(..., help="Company ids.")):
     """Put a company's current draft in Gmail Drafts for you to address and send by hand. Never sends.
@@ -198,10 +206,13 @@ def gmail_draft(ids: list[int] = typer.Argument(..., help="Company ids.")):
         c = company_or_fail(cid)
         d = current_draft(cid)
         if d is None:
-            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: no open draft (run `outreach generate {cid}`)")
+            done = S().query(db.Draft).filter_by(company_id=cid, status="finished").first()
+            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: " + ("already finished (in Gmail Drafts)" if done
+                          else f"no open draft (run `outreach generate {cid}`)"))
             continue
         if db.kv_get(S(), f"gmail_manual_draft:{d.id}"):
-            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: draft #{d.id} is already in Gmail Drafts")
+            _finish(d)
+            console.print(f"  [yellow]skip[/yellow] {escape(c.name)}: draft #{d.id} is already in Gmail Drafts (marked finished)")
             continue
         k = d.contact
         to = k.email if k and k.email and k.email_status in outreach.VERIFIED else c.name
@@ -216,7 +227,7 @@ def gmail_draft(ids: list[int] = typer.Argument(..., help="Company ids.")):
             to = f"(blank; subject starts with [{c.name}])"
         db.kv_set(S(), f"gmail_manual_draft:{d.id}", db.now().isoformat())
         db.log_activity(S(), "gmail_draft", f"{c.name}: draft #{d.id} placed in Gmail Drafts for manual sending", c.id)
-        S().commit()
+        _finish(d)
         qc = "" if (d.qc or {}).get("passed") else " [red](failed QC; read it first)[/red]"
         console.print(f"  {escape(c.name)}: Gmail draft created, To: {escape(to)}{qc}")
     console.print("Open Gmail → Drafts, check the To: address, then send by hand. Replies there aren't tracked by `outreach inbox`.")
@@ -831,7 +842,7 @@ def replies():
 def pipeline():
     """Where every company stands."""
     counts = Counter(c.state for c in S().query(db.Company))
-    order = ["discovered", "researched", "shortlisted", "drafted", "reviewed", "approved", "scheduled", "sent", "followup_pending",
+    order = ["discovered", "researched", "shortlisted", "drafted", "reviewed", "approved", "scheduled", "finished", "sent", "followup_pending",
              "replied", "closed", "bounced", "rejected", "opted_out", "unavailable"]
     t = Table(title="Pipeline")
     t.add_column("State")
@@ -858,6 +869,7 @@ def stats():
             ("News items stored", s.query(db.NewsItem).count()),
             ("Drafts awaiting approval", s.query(db.Draft).filter(db.Draft.status.in_(("drafted", "reviewed"))).count()),
             ("Approved, unsent", s.query(db.Draft).filter(db.Draft.status.in_(("approved", "scheduled"))).count()),
+            ("Finished (in Gmail Drafts, send by hand)", s.query(db.Draft).filter_by(status="finished").count()),
             ("Initial emails sent", sent_initial),
             ("Follow-ups sent", s.query(db.SentMessage).filter_by(kind="followup", status="sent").count()),
             ("Replies (human)", human), ("Positive/neutral replies", by_kind["reply"]), ("Declines", by_kind["negative"]),
