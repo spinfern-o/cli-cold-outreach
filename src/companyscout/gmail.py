@@ -1,8 +1,10 @@
 """Gmail connector: MIME construction, OAuth (token in the macOS Keychain), a real client and a local mock."""
 import base64
 import json
+import mimetypes
 import uuid
 from email.message import EmailMessage
+from pathlib import Path
 from email.utils import formataddr, formatdate, parseaddr
 
 import keyring
@@ -17,13 +19,17 @@ class GmailError(RuntimeError):
     pass
 
 
-def build_message(from_name, from_email, to_email, subject, body, message_id, in_reply_to=None) -> EmailMessage:
+def build_message(from_name, from_email, to_email, subject, body, message_id, in_reply_to=None, attachment=None) -> EmailMessage:
     m = EmailMessage()
     m["From"], m["To"], m["Subject"] = formataddr((from_name, from_email)), to_email, subject
     m["Message-ID"], m["Date"] = message_id, formatdate(localtime=True)
     if in_reply_to:  # RFC 5322 threading; Gmail also needs the threadId and a matching subject
         m["In-Reply-To"], m["References"] = in_reply_to, in_reply_to
     m.set_content(body)
+    if attachment:
+        path = Path(attachment).expanduser()
+        maintype, _, subtype = (mimetypes.guess_type(path.name)[0] or "application/octet-stream").partition("/")
+        m.add_attachment(path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name)
     return m
 
 
@@ -42,7 +48,8 @@ class MockGmail:
     def _add(self, label, msg, thread_id, sender):
         entry = {"id": uuid.uuid4().hex[:16], "threadId": thread_id or uuid.uuid4().hex[:16], "label": label,
                  "from": sender, "to": msg["To"], "subject": msg["Subject"], "rfc_id": msg["Message-ID"],
-                 "snippet": msg.get_content().strip()[:300], "headers": {k: v for k, v in msg.items()}}
+                 "snippet": msg.get_body(("plain",)).get_content().strip()[:300], "headers": {k: v for k, v in msg.items()},
+                 "attachments": [p.get_filename() for p in msg.iter_attachments()]}
         self.messages.append(entry)
         self.path.write_text(json.dumps(self.messages, indent=1))
         return entry

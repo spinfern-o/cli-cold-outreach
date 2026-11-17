@@ -28,7 +28,7 @@ Structure, one short paragraph each:
 2. **Proof**: the one project, described by what it does and a concrete detail (a number, a method, how it was verified). Not a resume list.
 3. **Relevance**: one sentence on what you could help with on *their* product (testing, tooling, evaluation, a feature area).
 4. **Ask**: one question. "Is a Summer 2027 intern something your team would consider?" beats "Would you be open to a quick chat to discuss opportunities?"
-5. **Sign-off**: "Larry Wang" (CompanyScout convention). At most one link.
+5. **Sign-off**: "Larry Wang" (CompanyScout convention). At most one link. His resume PDF is attached automatically at send time, so the body doesn't need to point to it.
 
 Constraints, with the reason for each:
 - **90–140 words** in CompanyScout (its QC enforces this). Research points lower, at 50–100 for sales email, but an intern ask needs one line of proof. Stay near the low end.

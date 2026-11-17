@@ -234,3 +234,26 @@ def test_sends_are_paced_by_the_minimum_gap(session, cfg):
     waits = []
     sender.send_approved(session, gmail.MockGmail(), live(cfg, min_seconds_between_sends=90), limit=10, sleep=waits.append)
     assert len(waits) == 1 and 80 < waits[0] <= 90
+
+
+def test_resume_is_attached_and_a_changed_file_blocks_the_send(session, cfg, tmp_path):
+    resume = tmp_path / "Ziheng_Wang_Resume.pdf"
+    resume.write_bytes(b"%PDF-1.4 v1")
+    c = live(cfg, attachment=str(resume))
+    _, d = approved(session)
+    d.approved_hash = outreach.content_hash(d.subject, d.body, "dana@acme.com", str(resume))
+    session.commit()
+    client = gmail.MockGmail()
+    run(session, client, c)
+    assert client.box("sent")[0]["attachments"] == ["Ziheng_Wang_Resume.pdf"]
+
+    _, d2 = approved(session, name="Beta", email="lee@beta.com")
+    d2.approved_hash = outreach.content_hash(d2.subject, d2.body, "lee@beta.com", str(resume))
+    session.commit()
+    resume.write_bytes(b"%PDF-1.4 v2 edited after approval")
+    assert "content changed since approval" in run(session, client, c)[0][1]
+    _, d3 = approved(session, name="Gamma", email="kim@gamma.com")
+    d3.approved_hash = outreach.content_hash(d3.subject, d3.body, "kim@gamma.com", str(resume))
+    session.commit()
+    resume.unlink()
+    assert "not found" in run(session, client, c)[0][1]

@@ -75,7 +75,7 @@ Hurt:
 
 - flattery with no specifics
 - filler openers
-- an attachment in the first email (link instead) **[opinion]**
+- an attachment in the first email **[opinion]**. Larry has chosen to attach his resume anyway (CompanyScout `attachment` setting), so don't mention it in the body unless he asks
 - several asks
 - more than ~125 words
 - overclaiming ("expert in AI")

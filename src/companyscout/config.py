@@ -31,6 +31,7 @@ DEFAULTS = {
     "notify": True,                  # macOS notification for significant findings
     "research_parallel": 3,
     "cache_ttl_h": 24,
+    "attachment": None,              # file attached to every outgoing email (e.g. resume PDF); None = no attachment
     "live_sending": False,           # draft-only until the user turns this on
     "daily_send_cap": 5,
     "min_seconds_between_sends": 90,

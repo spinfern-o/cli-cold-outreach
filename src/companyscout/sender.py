@@ -5,6 +5,7 @@ import re
 import time
 from datetime import timedelta
 from email.utils import make_msgid
+from pathlib import Path
 
 from . import db, gmail, outreach
 
@@ -61,7 +62,10 @@ def _send_one(session, client, cfg, draft, sleep) -> str:
     if contact is None or not contact.email or contact.email_status not in outreach.VERIFIED:
         return "blocked: recipient has no verified email address"
     to = contact.email
-    if draft.approved_hash != outreach.content_hash(draft.subject, draft.body, to):
+    attachment = cfg["attachment"]
+    if attachment and not Path(attachment).expanduser().is_file():
+        return f"blocked: attachment {attachment} not found"
+    if draft.approved_hash != outreach.content_hash(draft.subject, draft.body, to, attachment):
         draft.status, draft.approved_hash, draft.approved_at = "drafted", None, None
         if draft.kind == "initial" and company.state in ("approved", "scheduled"):
             db.transition(company, "drafted")
@@ -93,7 +97,8 @@ def _send_one(session, client, cfg, draft, sleep) -> str:
                              rfc_message_id=make_msgid(domain=client.address.split("@")[-1]))
         session.add(row)
         session.commit()
-    msg = gmail.build_message(cfg["from_name"], client.address, to, draft.subject, draft.body, row.rfc_message_id, in_reply_to)
+    msg = gmail.build_message(cfg["from_name"], client.address, to, draft.subject, draft.body, row.rfc_message_id, in_reply_to,
+                              attachment)
     if not cfg["live_sending"]:
         client.create_draft(msg, thread_id)
         row.status = "draft_created"

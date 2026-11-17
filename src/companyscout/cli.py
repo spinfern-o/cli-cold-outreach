@@ -628,7 +628,7 @@ def review(all_: bool = typer.Option(False, "--all", help="Include already-appro
                 break
             if choice == "a":
                 try:
-                    outreach.approve(S(), d)
+                    outreach.approve(S(), d, attachment=cfg["attachment"])
                     console.print(f"[green]Approved for {escape(d.contact.email)}.[/green] Only this exact text can be sent.")
                     break
                 except outreach.ApprovalError as e:
@@ -673,7 +673,7 @@ def approve(cid: Optional[int] = typer.Argument(None, help="Company id."), batch
     if cid is not None:
         d = current_draft(cid) or fail("No open draft for that company. Run `outreach generate`.")
         try:
-            outreach.approve(S(), d, force=force)
+            outreach.approve(S(), d, force=force, attachment=cfg["attachment"])
         except outreach.ApprovalError as e:
             fail(str(e))
         if d.needs_refresh:
@@ -690,7 +690,7 @@ def approve(cid: Optional[int] = typer.Argument(None, help="Company id."), batch
     if not yes and not typer.confirm(f"Approve these {len(ready)} drafts exactly as written?"):
         raise typer.Exit(1)
     for d in ready:
-        outreach.approve(S(), d)
+        outreach.approve(S(), d, attachment=cfg["attachment"])
     console.print(f"[green]Approved {len(ready)}.[/green]")
 
 

@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 from datetime import timedelta
+from pathlib import Path
 from difflib import SequenceMatcher
 
 from . import db, llm
@@ -53,8 +54,10 @@ class ApprovalError(ValueError):
     pass
 
 
-def content_hash(subject, body, to_email) -> str:
-    return hashlib.sha256(f"{to_email}\n{subject}\n{body}".encode()).hexdigest()
+def content_hash(subject, body, to_email, attachment=None) -> str:
+    """What an approval covers. With an attachment, its bytes too, so a changed or missing file blocks the send."""
+    extra = "" if not attachment else "\n" + hashlib.sha256(Path(attachment).expanduser().read_bytes()).hexdigest()
+    return hashlib.sha256(f"{to_email}\n{subject}\n{body}{extra}".encode()).hexdigest()
 
 
 def _advance(company, target) -> None:
@@ -173,7 +176,7 @@ def qc(session, provider, cfg, draft, profile) -> dict:
     return draft.qc
 
 
-def approve(session, draft, force=False) -> None:
+def approve(session, draft, force=False, attachment=None) -> None:
     """Recipient-specific approval of exactly this text for exactly this address."""
     contact = draft.contact
     if contact is None or not contact.email or contact.email_status not in VERIFIED:
@@ -183,8 +186,10 @@ def approve(session, draft, force=False) -> None:
     if draft.status not in ("reviewed", "drafted") or (draft.status == "drafted" and not force):
         raise ApprovalError("draft has not passed quality review; fix it or approve with --force"
                             if draft.status == "drafted" else f"draft is {draft.status}, not awaiting approval")
+    if attachment and not Path(attachment).expanduser().is_file():
+        raise ApprovalError(f"attachment {attachment} not found; fix the path with `outreach config attachment <file>`")
     draft.status, draft.approved_at = "approved", db.now()
-    draft.approved_hash = content_hash(draft.subject, draft.body, contact.email)
+    draft.approved_hash = content_hash(draft.subject, draft.body, contact.email, attachment)
     if draft.kind == "initial":
         _advance(draft.company, "approved")
     session.commit()
