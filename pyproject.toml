@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "companyscout"
+version = "0.1.0"
+description = "Company discovery and personalized cold-outreach CLI"
+requires-python = ">=3.11"
+dependencies = [
+  "typer>=0.12", "rich>=13", "sqlalchemy>=2.0", "pydantic>=2.6",
+  "google-api-python-client>=2.100", "google-auth-oauthlib>=1.2",
+  "keyring>=24", "pypdf>=4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+outreach = "companyscout.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
