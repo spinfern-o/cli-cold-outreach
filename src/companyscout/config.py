@@ -18,7 +18,7 @@ DEFAULTS = {
     "size_min": 15,
     "size_max": 750,
     "locations": ["United States", "Remote", "Michigan", "Midwest"],
-    "exclude_experiences": ["Michigan Dining"],
+    "exclude_experiences": ["Michigan Dining", "MDining"],
     "credentials": ["8VC Fellowship finalist"],  # candidate-stated facts that are not on the resume
     "weights": {"tech_match": 25, "access": 20, "stability": 20, "intern_potential": 20, "timing": 10, "interest": 5},
     "shortlist_interval_h": 12,

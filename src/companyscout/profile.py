@@ -18,7 +18,7 @@ def clean(raw: CandidateProfile, source_text: str, cfg) -> CandidateProfile:
     excluded = [e.lower() for e in cfg["exclude_experiences"]]
     projects = []
     for p in raw.projects:
-        if any(e in p.name.lower() for e in excluded):
+        if any(e in p.name.lower() for e in excluded) or not p.evidence:  # nothing verifiable to say about it
             continue
         projects.append(p.model_copy(update={"technologies": [t for t in p.technologies if t.lower() in text]}))
     return raw.model_copy(update={"projects": projects, "source_text": source_text})

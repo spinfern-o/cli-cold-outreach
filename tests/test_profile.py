@@ -46,3 +46,11 @@ def test_import_profile_stores_cleaned_knowledge_base(session, cfg):
     profile.import_profile(session, provider, cfg, TEXT)
     stored = profile.load_profile(session)
     assert [p.name for p in stored.projects] == ["FinDash", "declutter", "Colson Group / EBG"]
+
+
+def test_clean_drops_dining_alias_and_entries_with_no_evidence(cfg):
+    raw = raw_profile()
+    raw.projects += [Project(name="MDining", summary="Listed only as a repository."),
+                     Project(name="Empty Repo", summary="Listed only as a repository with an empty README.")]
+    names = [p.name for p in profile.clean(raw, TEXT, cfg).projects]
+    assert names == ["FinDash", "declutter", "Colson Group / EBG"]
