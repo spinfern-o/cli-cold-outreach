@@ -25,6 +25,9 @@ DEFAULTS = {
     "discovery_interval_h": 168,
     "monitor_tick_s": 3600,
     "monitor_max_per_tick": 15,
+    "weekly_discovery_limit": 15,    # 0 disables background discovery
+    "news_significant": 60,          # significance at which news rescoring flags drafts
+    "notify": True,                  # macOS notification for significant findings
     "research_parallel": 3,
     "cache_ttl_h": 24,
     "live_sending": False,           # draft-only until the user turns this on

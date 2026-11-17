@@ -8,6 +8,7 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("OUTREACH_HOME", str(tmp_path))
     monkeypatch.setenv("OUTREACH_PROVIDER", "mock")
     monkeypatch.setenv("OUTREACH_GMAIL", "mock")
+    monkeypatch.setenv("OUTREACH_NOTIFY", "false")
     return tmp_path
 
 

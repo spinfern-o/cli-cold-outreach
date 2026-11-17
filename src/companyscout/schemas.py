@@ -83,6 +83,7 @@ class Opening(BaseModel):
     affects_hiring: bool = False
     relevance: str = ""
     suggested_opening: str = ""
+    project: str = ""  # candidate project this news makes most relevant
 
 
 class Project(BaseModel):

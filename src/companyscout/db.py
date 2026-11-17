@@ -81,6 +81,7 @@ class NewsItem(Base):
     published_at = Column(DateTime)
     fetched_at = Column(DateTime, default=now)
     source = Column(String)
+    verified = Column(Boolean, default=False)  # only verified items may change scores, risk flags or drafts
     suggested_opening = Column(Text)
     company = relationship("Company")
 
