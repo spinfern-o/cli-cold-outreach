@@ -10,6 +10,23 @@ from .schemas import EmailDraft, QCReview
 
 VERIFIED = ("verified_public", "user_verified")
 ORDER = ["discovered", "researched", "shortlisted", "drafted", "reviewed", "approved"]
+SUFFIXES = {"robotics", "software", "technologies", "technology", "systems", "labs", "interfaces", "innovation",
+            "data", "ai", "group", "inc", "inc.", "corp", "corporation", "co", "co."}
+
+
+def name_variants(name: str) -> set[str]:
+    """How an email can fairly name a company: "Kit (ConvertKit)" -> Kit / ConvertKit, "Plus One Robotics" -> Plus One."""
+    out = {name.strip()}
+    m = re.match(r"\s*(.+?)\s*\((.+)\)\s*$", name)
+    if m:
+        out |= {m.group(1), m.group(2)}
+    for n in list(out):
+        words = n.split()
+        if len(words) > 1 and words[-1].lower() in SUFFIXES:
+            out.add(" ".join(words[:-1]))
+    return out
+
+
 GENERIC = ["i hope this email finds you well", "i am writing to express", "i'm writing to express", "passionate about",
            "cutting-edge", "esteemed", "innovative company", "synergy", "i would be a great fit", "dream company"]
 
@@ -105,7 +122,7 @@ def qc(session, provider, cfg, draft, profile) -> dict:
         issues.append(f"{words} words; target is {lo}-{hi}")
     if "2027" not in body or "?" not in body:
         issues.append("no clear question about Summer 2027 opportunities")
-    if company.name.lower() not in body.lower():
+    if not any(re.search(rf"\b{re.escape(n)}\b", body, re.I) for n in name_variants(company.name)):
         issues.append("never names the company")
     generic = [g for g in GENERIC if g in body.lower()]
     if generic:
@@ -133,6 +150,7 @@ def qc(session, provider, cfg, draft, profile) -> dict:
                   "recipient_appropriateness, call_to_action. Verdict 'reject' if any claim about the candidate is not in "
                   "CANDIDATE FACTS, any claim about the company is not in COMPANY RESEARCH, the email would fit another "
                   "company with the name swapped, or it reads as flattery. List concrete issues.\n\n"
+                  f"RECIPIENT (from our contact research): {contact.name + ', ' + (contact.title or '') if contact and contact.name else 'unknown'}\n\n"
                   f"EMAIL:\nSubject: {draft.subject}\n{body}\n\nCOMPANY RESEARCH:\n{_research(session, company)}\n\n"
                   f"CANDIDATE FACTS:\n{_facts(profile, cfg)}")
         try:

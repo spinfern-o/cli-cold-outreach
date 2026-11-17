@@ -1,9 +1,12 @@
 """Agent A (discovery) and Agent B (company intelligence)."""
 import logging
+import ssl
 import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
+
+import certifi
 
 from . import db, llm, profile as profile_mod, scoring
 from .schemas import TAGS, CompanyResearch, DiscoveryResult
@@ -29,12 +32,16 @@ def canonical_domain(url: str) -> str:
     return host.lower().removeprefix("www.")
 
 
+# python.org builds of Python ship without system root certificates; without this every HTTPS fetch fails.
+SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+
+
 def fetch_url(url: str, limit: int = 2_000_000) -> str:
     """Plain, identified HTTP GET. http(s) only; nothing fetched is ever executed."""
     if urlparse(url).scheme not in ("http", "https"):
         raise ValueError(f"refusing non-http URL: {url}")
     req = urllib.request.Request(url, headers={"User-Agent": "CompanyScout/0.1 (personal internship research)"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as resp:
         return resp.read(limit).decode("utf-8", errors="replace")
 
 
@@ -127,7 +134,11 @@ def _research_prompt(name, website, industry, description):
             "- feed_url: the company's blog/news RSS or Atom feed if one exists\n"
             "- contact: the most reachable technical decision-maker (CTO, VP Eng, engineering manager, technical founder). "
             "Include email ONLY if that exact address is printed on a public professional page, and give that page as "
-            "email_source_url. Do not guess or pattern-match addresses; otherwise email is null.\n"
+            "email_source_url. If their own address is not printed anywhere, use instead a company address printed on the "
+            "company's own website that a hiring or engineering inquiry could reach (prefer careers@/jobs@/engineering@, "
+            "then hello@/info@/contact@; never sales-only, support-ticket or press addresses), with that page as "
+            "email_source_url; keep the decision-maker's name and title. Do not guess or pattern-match addresses; if "
+            "neither exists, email is null.\n"
             "- sources: every URL you relied on.")
 
 

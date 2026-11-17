@@ -84,29 +84,48 @@ def send_notification(title: str, message: str) -> None:
 def ingest(session, company, findings, cfg, verified=False, provider=None, profile=None, notify=None, source="search"):
     """Store unseen findings; verified ones for a company also rescore it, flag risk and flag unsent drafts. Returns new rows."""
     notify = notify or (send_notification if cfg["notify"] else (lambda *a: None))
-    cid = company.id if company is not None else None
-    seen = {_norm(t) for (t,) in session.query(db.NewsItem.title).filter(
-        db.NewsItem.company_id == cid if cid else db.NewsItem.company_id.is_(None))}
+    fresh = []
+    # No flush (and so no SQLite write lock) until every slow model call below is done; the CLI and the
+    # launchd monitor share this database and a writer waiting past busy_timeout fails with "database is locked".
+    with session.no_autoflush:
+        cid = company.id if company is not None else None
+        seen = {_norm(t) for (t,) in session.query(db.NewsItem.title).filter(
+            db.NewsItem.company_id == cid if cid else db.NewsItem.company_id.is_(None))}
+        for f in findings:
+            key = hashlib.sha1(f"{cid}|{_canon(f.url)}".encode()).hexdigest()
+            if _norm(f.title) in seen or session.query(db.NewsItem).filter_by(dedupe_key=key).first():
+                continue
+            seen.add(_norm(f.title))
+            fresh.append((f, key))
+        impact = company is not None and verified
+        openings = [_opening(company, f, cfg, provider, profile) if impact else None for f, _ in fresh]
     stored = []
-    for f in findings:
-        key = hashlib.sha1(f"{cid}|{_canon(f.url)}".encode()).hexdigest()
-        if _norm(f.title) in seen or session.query(db.NewsItem).filter_by(dedupe_key=key).first():
-            continue
-        seen.add(_norm(f.title))
+    for f, key in fresh:
         item = db.NewsItem(company_id=cid, dedupe_key=key, title=f.title, url=f.url, summary=f.summary, category=f.category,
                            significance=f.significance, published_at=_when(f.published), source=source, verified=verified)
         session.add(item)
         stored.append(item)
     session.flush()
-    if company is not None and verified and stored:
-        for item in stored:
-            _impact(session, company, item, cfg, provider, profile, notify)
+    if impact and stored:
+        for item, o in zip(stored, openings):
+            _impact(session, company, item, cfg, profile, notify, o)
         scoring.apply(session, company, cfg)
     session.commit()
     return stored
 
 
-def _impact(session, company, item, cfg, provider, profile, notify):
+def _opening(company, f, cfg, provider, profile):
+    """The model's suggested opening for significant, non-risk news; None when not needed or the call fails."""
+    if provider is None or profile is None or f.category == "layoffs" or (f.significance or 0) < cfg["news_significant"]:
+        return None
+    try:
+        return llm.ask(provider, "opening", _opening_prompt(company, f, profile), Opening, retries=2, cache=False)
+    except llm.ProviderError as e:
+        log.warning("opening suggestion failed", extra={"data": {"error": str(e)[:200]}})
+        return None
+
+
+def _impact(session, company, item, cfg, profile, notify, o=None):
     risk = item.category == "layoffs"
     if risk:
         if company.stability != "Elevated Risk":
@@ -118,17 +137,13 @@ def _impact(session, company, item, cfg, provider, profile, notify):
         return
     suggestion = (f"RISK — reconsider before sending: {item.title} ({item.url})" if risk
                   else f"Recent news to reference: {item.title} ({item.url})")
-    if provider is not None and profile is not None and not risk:
-        try:
-            o = llm.ask(provider, "opening", _opening_prompt(company, item, profile), Opening, retries=2, cache=False)
-            item.suggested_opening = o.suggested_opening
-            suggestion += f"\nSuggested opening: {o.suggested_opening}\nWhy it matters: {o.relevance}"
-            if o.project in {p.name for p in profile.projects} and o.project != company.primary_project:
-                session.add(db.History(company_id=company.id, field="primary_project", old=str(company.primary_project),
-                                       new=o.project, source=item.url))
-                company.primary_project = o.project
-        except llm.ProviderError as e:
-            log.warning("opening suggestion failed", extra={"data": {"error": str(e)[:200]}})
+    if o is not None:
+        item.suggested_opening = o.suggested_opening
+        suggestion += f"\nSuggested opening: {o.suggested_opening}\nWhy it matters: {o.relevance}"
+        if o.project in {p.name for p in profile.projects} and o.project != company.primary_project:
+            session.add(db.History(company_id=company.id, field="primary_project", old=str(company.primary_project),
+                                   new=o.project, source=item.url))
+            company.primary_project = o.project
     # Approved text is never rewritten here: the draft is only flagged and the suggestion stored beside it.
     for draft in session.query(db.Draft).filter(db.Draft.company_id == company.id, db.Draft.status.in_(UNSENT)):
         draft.needs_refresh, draft.refresh_suggestion = True, suggestion
@@ -216,6 +231,7 @@ def tick(session, provider, cfg, now=None, fetch=discovery.fetch_url, notify=Non
                 session.rollback()
                 log.exception("company check failed", extra={"data": {"error": str(e)[:200]}})
             run.checked += 1
+            session.commit()  # else the next lazy load flushes this and holds the write lock through network calls
         if stale("last_market_check", cfg["tracked_interval_h"]):
             sectors = sorted({c.industry for c in session.query(db.Company).filter_by(shortlisted=True) if c.industry})
             prompt = ("TASK: news\nGeneral market developments from the last two weeks relevant to a CS student seeking a "

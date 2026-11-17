@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
   "typer>=0.12", "rich>=13", "sqlalchemy>=2.0", "pydantic>=2.6",
   "google-api-python-client>=2.100", "google-auth-oauthlib>=1.2",
-  "keyring>=24", "pypdf>=4",
+  "keyring>=24", "pypdf>=4", "certifi",
 ]
 
 [project.optional-dependencies]

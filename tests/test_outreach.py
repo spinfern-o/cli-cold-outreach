@@ -103,3 +103,20 @@ def test_llm_reviewer_rejection_fails_qc(session, cfg):
     _, d = setup(session)
     provider = llm.MockProvider(lambda task, prompt: dict(verdict="reject", scores={}, issues=["Claims a Rust project the resume lacks"]))
     assert "Rust" in " | ".join(outreach.qc(session, provider, cfg, d, profile())["issues"])
+
+
+def test_qc_accepts_the_names_a_person_would_actually_write():
+    from companyscout.outreach import name_variants
+    assert {"Kit", "ConvertKit"} <= name_variants("Kit (ConvertKit)")
+    assert "Plus One" in name_variants("Plus One Robotics")
+    assert name_variants("8th Light") == {"8th Light"}
+    import re
+    assert not any(re.search(rf"\b{re.escape(n)}\b", "a toolkit for teams", re.I) for n in name_variants("Kit (ConvertKit)"))
+
+
+def test_llm_reviewer_is_told_who_the_recipient_is(session, cfg):
+    _, d = setup(session)
+    prompts = []
+    provider = llm.MockProvider(lambda task, prompt: prompts.append(prompt) or dict(verdict="pass", scores={}, issues=[]))
+    outreach.qc(session, provider, cfg, d, profile())
+    assert "RECIPIENT (from our contact research): Dana Reyes, CTO" in prompts[0]

@@ -108,3 +108,30 @@ def test_tick_checks_due_companies_and_records_missed_ticks(session, cfg):
     run = news.tick(session, provider, cfg, fetch=lambda url: "Acme launches AI document processing", notify=QUIET)
     assert (run.checked, run.new_items, run.missed_ticks) == (1, 1, 4)
     assert c.news_checked_at is not None and session.query(db.NewsItem).one().verified is True
+
+
+def test_model_calls_happen_while_no_write_lock_is_held(session, cfg):
+    import sqlite3
+    from companyscout import config
+    from companyscout.schemas import CandidateProfile, Opening
+    c = company(session)
+    session.add(db.Draft(company_id=c.id, body="b", status="drafted"))
+    session.commit()
+    c.notes = "pending edit"  # a dirty object must not be flushed (taking the lock) before the model call
+    locked = []
+
+    def handler(task, prompt):
+        other = sqlite3.connect(config.home() / "outreach.db", timeout=0)
+        try:
+            other.execute("BEGIN IMMEDIATE")
+            other.rollback()
+        except sqlite3.OperationalError:
+            locked.append(task)
+        finally:
+            other.close()
+        return Opening(affects_hiring=True, project="FinDash", relevance="r", suggested_opening="Saw the launch.").model_dump()
+
+    p = CandidateProfile(name="L", projects=[])
+    news.ingest(session, c, [finding()], cfg, verified=True, provider=llm.MockProvider(handler), profile=p, notify=QUIET)
+    assert locked == []
+    assert session.query(db.NewsItem).one().suggested_opening == "Saw the launch."

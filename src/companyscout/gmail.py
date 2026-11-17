@@ -135,9 +135,13 @@ def load_credentials(cfg):
 
 def _revoke(token):
     import urllib.parse
+    import ssl
     import urllib.request
+
+    import certifi
     data = urllib.parse.urlencode({"token": token}).encode()
-    urllib.request.urlopen(urllib.request.Request("https://oauth2.googleapis.com/revoke", data=data), timeout=15)
+    urllib.request.urlopen(urllib.request.Request("https://oauth2.googleapis.com/revoke", data=data), timeout=15,
+                           context=ssl.create_default_context(cafile=certifi.where()))
 
 
 def disconnect(revoke=_revoke) -> bool:
