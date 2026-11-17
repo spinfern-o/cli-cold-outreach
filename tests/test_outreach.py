@@ -109,6 +109,7 @@ def test_qc_accepts_the_names_a_person_would_actually_write():
     from companyscout.outreach import name_variants
     assert {"Kit", "ConvertKit"} <= name_variants("Kit (ConvertKit)")
     assert "Plus One" in name_variants("Plus One Robotics")
+    assert "Aequitas" in name_variants("Aequitas Solutions")
     assert name_variants("8th Light") == {"8th Light"}
     import re
     assert not any(re.search(rf"\b{re.escape(n)}\b", "a toolkit for teams", re.I) for n in name_variants("Kit (ConvertKit)"))

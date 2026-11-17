@@ -11,7 +11,7 @@ from .schemas import EmailDraft, QCReview
 VERIFIED = ("verified_public", "user_verified")
 ORDER = ["discovered", "researched", "shortlisted", "drafted", "reviewed", "approved"]
 SUFFIXES = {"robotics", "software", "technologies", "technology", "systems", "labs", "interfaces", "innovation",
-            "data", "ai", "group", "inc", "inc.", "corp", "corporation", "co", "co."}
+            "data", "ai", "solutions", "group", "inc", "inc.", "corp", "corporation", "co", "co."}
 
 
 def name_variants(name: str) -> set[str]:
