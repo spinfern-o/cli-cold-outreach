@@ -98,3 +98,4 @@ def test_gmail_draft_puts_company_name_in_to_when_no_verified_address(home):
     assert len(drafts) == 1 and drafts[0]["to"] == name and drafts[0]["attachments"] == ["Resume.pdf"]
     assert gmail.MockGmail().box("sent") == []
     assert "already in Gmail Drafts" in runner.invoke(app, ["gmail", "draft", "1"]).output
+    assert "already in Gmail Drafts" in runner.invoke(app, ["review"], input="d\nq\n").output  # [d] in review = same command

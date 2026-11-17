@@ -655,7 +655,7 @@ def review(all_: bool = typer.Option(False, "--all", help="Include already-appro
     for d in queue:
         while True:
             _show_draft(d)
-            choice = typer.prompt("[a]pprove  [e]dit  [1-3] subject  [g] regenerate  [r]eject  [n]ext  [q]uit", default="n").strip().lower()
+            choice = typer.prompt("[a]pprove  [d]raft in Gmail  [e]dit  [1-3] subject  [g] regenerate  [r]eject  [n]ext  [q]uit", default="n").strip().lower()
             if choice == "q":
                 return
             if choice == "n":
@@ -666,6 +666,12 @@ def review(all_: bool = typer.Option(False, "--all", help="Include already-appro
                     console.print(f"[green]Approved for {escape(d.contact.email)}.[/green] Only this exact text can be sent.")
                     break
                 except outreach.ApprovalError as e:
+                    console.print(f"[red]{escape(str(e))}[/red]")
+            elif choice == "d":  # same as `outreach gmail draft <company id>`: a Gmail draft to send by hand
+                try:
+                    gmail_draft([d.company_id])
+                    break
+                except gmail.GmailError as e:
                     console.print(f"[red]{escape(str(e))}[/red]")
             elif choice == "e":
                 edited = open_editor(d.body)
